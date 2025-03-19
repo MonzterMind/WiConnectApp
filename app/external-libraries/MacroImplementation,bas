@@ -1,0 +1,179 @@
+Option Explicit
+
+''How to use
+'in the cell enter this formula
+''=ProcessURL("http://localhost:3000/api/headcount/site/CY/category/Management", {"EmployeeName","Position"})
+
+Public Function ProcessURL(url As String, fields As Variant) As Variant
+    Dim xmlhttp As Object
+    Dim json As Object
+    Dim employeeData As Object
+    Dim employeeArray As Object
+    Dim myList() As Variant
+    Dim i As Integer
+    Dim ctr As Integer
+
+    ' Initialize the XMLHTTP object
+    Set xmlhttp = CreateObject("MSXML2.XMLHTTP")
+    
+    url = url & "?timestamp=" & Now()
+    ' Send GET request to the web service
+    xmlhttp.Open "GET", url, False
+    xmlhttp.Send
+    
+    ' Parse the JSON response
+    Set json = JsonConverter.ParseJson(xmlhttp.responseText)
+    
+    ' Detect if "data" contains a nested array
+    If TypeName(json("data")(1)) = "Collection" Then
+        ' Nested array case
+        Set employeeArray = json("data")(1)
+    Else
+        ' Flat array case
+        Set employeeArray = json("data")
+    End If
+    
+    ' Redimension the array to hold data for the specified fields
+    ReDim myList(1 To employeeArray.Count, 1 To UBound(fields) - LBound(fields) + 1)
+    
+    ' Loop through the employee data and populate the array
+    i = 1 ' Starting index for array
+    For Each employeeData In employeeArray
+        For ctr = LBound(fields) To UBound(fields)
+            myList(i, ctr - LBound(fields) + 1) = employeeData(fields(ctr))
+        Next ctr
+        i = i + 1
+    Next employeeData
+    
+    ' Return the array
+    ProcessURL = myList
+End Function
+
+
+'converts excel table to JSON data
+'sample output "data" :[[{"EMPLOYEE":"Abdelaal, Amer","LOCATION":"TESt","LOTO / HARNESS":"LOTO","YES/NO":"YES/OUI","COMMENTS":"Tet","ROWID":"10-Ahogle, Brayan45618"},{"EMPLOYEE":"Abid, Imed","LOCATION":"e","LOTO / HARNESS":"LOTO","YES/NO":"YES/OUI","COMMENTS":"csafda","ROWID":"11-Ahogle, Brayan45618"},{"EMPLOYEE":"Abid, Imed","LOCATION":"d","LOTO / HARNESS":"LOTO","YES/NO":"YES/OUI","COMMENTS":"asa","ROWID":"12-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"13-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"14-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"15-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"16-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"17-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO
+'":"","COMMENTS":"","ROWID":"18-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"19-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"20-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"21-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"22-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"23-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"24-Ahogle, Brayan45618"},{"EMPLOYEE":"","LOCATION":"","LOTO / HARNESS":"","YES/NO":"","COMMENTS":"","ROWID":"25-Ahogle, Brayan45618"}],0]
+
+
+'listobjcts can have empty rows the optional parameter checks and only inset raow if this field has value
+Private Function BuildJsonDataByTable(lstobj As ListObject, Optional CheckColumnNameNotEmpty As String = "") As String
+    Dim jsonData As String
+    Dim i As Integer
+    Dim rng As Range
+    Dim checkColumnIndex As Integer
+    Dim skipCheck As Boolean
+    
+    ' Determine if a column check is required
+    skipCheck = (CheckColumnNameNotEmpty = "")
+    
+    ' If a column check is specified, find its index
+    If Not skipCheck Then
+        On Error Resume Next
+        checkColumnIndex = lstobj.ListColumns(CheckColumnNameNotEmpty).Index
+        On Error GoTo 0
+        If checkColumnIndex = 0 Then
+            MsgBox "The column '" & CheckColumnNameNotEmpty & "' does not exist.", vbExclamation
+            Exit Function
+        End If
+    End If
+
+    ' Start building the JSON data
+    jsonData = """data"" :[["
+
+    ' Iterate through each row in the table
+    For i = 1 To lstobj.DataBodyRange.Rows.Count
+        ' If a column check is required, skip rows where the column is empty
+        If Not skipCheck Then
+            If Trim(lstobj.DataBodyRange(i, checkColumnIndex).Value) = "" Then
+                ' Skip this row
+                GoTo SkipRow
+            End If
+        End If
+        
+        ' Start the JSON object for the current row
+        jsonData = jsonData & "{"
+        
+        ' Iterate through each column in the row
+        For Each rng In lstobj.HeaderRowRange
+            ' Add key-value pairs to the JSON object
+            jsonData = jsonData & """" & rng.Value & """:""" & _
+                       lstobj.DataBodyRange(i, lstobj.ListColumns(rng.Value).Index).Value & ""","
+        Next
+        
+        ' Remove the trailing comma
+        jsonData = Left(jsonData, Len(jsonData) - 1)
+        
+        ' Close the JSON object
+        jsonData = jsonData & "},"
+        
+SkipRow:
+    Next
+    
+    ' Remove the trailing comma
+    If Right(jsonData, 1) = "," Then
+        jsonData = Left(jsonData, Len(jsonData) - 1)
+    End If
+
+    ' Close the JSON array
+    jsonData = jsonData & "],0]"
+    
+    ' Debug output
+    Debug.Print jsonData
+    
+    ' Return the JSON data
+    BuildJsonDataByTable = jsonData
+End Function
+
+
+
+
+
+
+Private Sub AddLotoHarness()
+    Dim http As Object
+    Dim url As String
+    Dim site As String, Supervisor As String, reportdate As String, shift As String, jsonData As String, fieldsToShow As String
+    Dim requestBody As String
+
+    ' Retrieve values from named ranges
+    On Error GoTo ErrorHandler
+    site = Range("SelectedSite").Value
+    Supervisor = Range("SelectedSupervisor").Value
+    reportdate = Range("SelectedReportdate").Value
+    shift = Range("SelectedShift").Value
+
+    ' Build JSON data from table
+    jsonData = BuildJsonDataByTable(ListObjects("LOTOTable"))
+
+    ' Specify fields to show
+    fieldsToShow = "RowIndex,employee,location,loto / harness,yes/no,comments,rowid"
+
+   requestBody = "{""site"":""" & site & """, " & _
+              """supervisorName"":""" & Supervisor & """, " & _
+              """reportDate"":""" & reportdate & """, " & _
+              """shift"":""" & shift & """, " & _
+                jsonData & ", " & _
+              """fieldstoshow"":""" & fieldsToShow & """}"
+
+    ' Initialize HTTP object
+    Set http = CreateObject("MSXML2.ServerXMLHTTP")
+    url = "http://localhost:3000/api/loto-harness/add-lotoandharness/:site/:supervisorName/:reportDate/:shift/:data/:fieldstoshow"
+    ' Configure and send HTTP POST request
+    With http
+        .Open "POST", url, False
+        .SetRequestHeader "Content-Type", "application/json"
+        .Send requestBody
+    End With
+
+    ' Check the response
+    If http.Status = 201 Then
+        MsgBox "Data posted successfully!"
+    Else
+        MsgBox "Error: " & http.Status & " - " & http.responseText
+    End If
+
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "An error occurred: " & Err.Description, vbCritical
+End Sub
