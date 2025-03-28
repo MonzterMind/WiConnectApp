@@ -1,133 +1,144 @@
 USE [WitronCentralDatabaseSQLServer]
 GO
-/****** Object:  StoredProcedure [dbo].[GetUniversalTableBySite]    Script Date: 2025-03-19 8:39:47 AM ******/
+/****** Object:  StoredProcedure [dbo].[GetUniversalTableBySite]    Script Date: 2025-03-28 5:45:43 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
--- =============================================
--- Author:		<Frank Ramos>
--- Create date: < 205-03-18>
--- Description:	<Stored Procedure to get GetUniversalTableBySite >
--- =============================================
-Create PROCEDURE [dbo].[GetUniversalTableBySite]
-	@siteName VARCHAR(10),
-    @uniqueReportName VARCHAR(10),	
-	@OtherCondition varchar (255) ='', -- New parameter for additional filtering
-	@TableName varchar(50)='UniversalTableLive' -- we can use this in the future to switch table or archiving
+
+ALTER PROCEDURE [dbo].[GetUniversalTableBySite]
+    @siteName VARCHAR(255),
+    @uniqueReportName VARCHAR(50),    
+    @OtherCondition VARCHAR(255) = '', -- Optional filter
+    @TableName VARCHAR(50) = 'UniversalTableLive' -- Target table
 AS
 BEGIN
     SET NOCOUNT ON;
-	 -- Validate @tableName (Avoid SQL Injection Risk)
-	 -- IF @TableName NOT IN ('UniversalTableLive', 'UniversalTableLive2004') 
-    IF @TableName NOT IN ('UniversalTableLive') 
+	
+    -- Validate @TableName (Avoid SQL Injection Risk)
+    IF @TableName NOT IN ('UniversalTableLive', 'UniversalTableWiFaultRateLive') 
     BEGIN
         RAISERROR('Invalid table name.', 16, 1);
         RETURN;
     END
+
     -- Temporary table for storing parsed key-value pairs
     CREATE TABLE #tbl (
         RecordID INT,  
-        FieldName NVARCHAR(100), 
-        FieldValue NVARCHAR(100)
+        FieldName NVARCHAR(MAX), 
+        FieldValue NVARCHAR(MAX),
+        ReportDate DATE,
+		[Site] varchar (10)
     );
-
+	
     -- Temporary table for storing original data
     CREATE TABLE #OriginalData (
         RecordID INT,
-        Site NVARCHAR(100),
-        ReportDate DATETIME,
-        UpdateDate DATETIME
+        Site NVARCHAR(255),
+        ReportDate DATE,
+        UpdateDate DATE
     );
 
     DECLARE @SQL NVARCHAR(MAX);
-	DECLARE @WhereCondition NVARCHAR(50) = ''; -- Variable to hold year condition
-
-    -- Check if @OtherCondition contains "year" and extract the year value dynamically
------------------------------------------------------------------------------------------------------------------------------------------------------------
+    DECLARE @WhereCondition NVARCHAR(255) = '';
+	 
+    -- Check if @OtherCondition contains "year" and extract the year dynamically
     IF CHARINDEX('year=', LOWER(@OtherCondition)) > 0
     BEGIN
         SET @WhereCondition = ' AND YEAR(ReportDate) = ' + 
             STUFF(@OtherCondition, 1, CHARINDEX('=', @OtherCondition), '');
     END
-	-- else if 
-	--we can use other condition to add more condition here
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-    -- Construct dynamic SQL for inserting into #OriginalData
 	
+	ELSE IF CHARINDEX('reportdate>=', LOWER(@OtherCondition)) > 0 
+    AND CHARINDEX('reportdate<=', LOWER(@OtherCondition)) > 0  -- between condition
+	BEGIN
+		SET @WhereCondition = ' AND ' + @OtherCondition
+		
+	END
+	
+	--- add more condition in the future if needed
+    -- Construct dynamic SQL for inserting into #OriginalData
     SET @SQL = '
-        INSERT INTO #OriginalData (RecordID, Site, ReportDate, UpdateDate)
-        SELECT ID, Site, ReportDate, UpdateDate
-        FROM '+ QUOTENAME(@TableName) +' 
-        WHERE UniqueReportName = @ReportName ' +
-        CASE WHEN LOWER(@siteName) <> 'all' 
-             THEN 'AND Site = @SiteName' 
-             ELSE '' 
-        END 
-		 + @WhereCondition +';';
-		
-		
+    INSERT INTO #OriginalData (RecordID, Site, ReportDate, UpdateDate)
+    SELECT ID, Site, ReportDate, UpdateDate
+    FROM ' + QUOTENAME(@TableName) + ' 
+    WHERE UniqueReportName = @ReportName ' +
+    CASE 
+        WHEN LOWER(@siteName) <> 'all'
+            THEN 
+                CASE 
+                    WHEN CHARINDEX(',', @siteName) > 0 
+                        THEN ' AND Site IN (' + '''' + REPLACE(@siteName, ',', ''',''') + '''' + ')'
+                        ELSE ' AND Site = @SiteName'
+                END
+        ELSE ''
+    END + 
+       @WHERECONDITION + ';';
+	 
 
-    -- Execute dynamic SQL with parameters to prevent SQL injection
     EXEC sp_executesql @SQL, 
-        N'@ReportName VARCHAR(10), @SiteName VARCHAR(10)', 
+        N'@ReportName VARCHAR(50), @SiteName VARCHAR(255)', 
         @uniqueReportName, @siteName;
 
-    -- Construct dynamic SQL for ParsedData
+    -- Construct dynamic SQL for parsing data and inserting into #tbl
     SET @SQL = '
         WITH ParsedData AS (
             SELECT 
                 ID AS RecordID,
-                CAST(''<X>'' + REPLACE(tabledata, '';;'', ''</X><X>'') + ''</X>'' AS XML) AS DataXML
-            FROM '+ QUOTENAME(@TableName) +' 
+                CAST(''<X>'' + REPLACE(tabledata, '';;'', ''</X><X>'') + ''</X>'' AS XML) AS DataXML,
+                ReportDate,
+				Site
+            FROM ' + QUOTENAME(@TableName) + '
             WHERE UniqueReportName = @ReportName ' +
-            CASE WHEN LOWER(@siteName) <> 'all' 
-                 THEN 'AND Site = @SiteName' 
-                 ELSE '' 
+            CASE 
+                WHEN LOWER(@siteName) <> 'all'
+                    THEN 
+                        CASE 
+                            WHEN CHARINDEX(',', @siteName) > 0 
+                                THEN ' AND Site IN (' + '''' + REPLACE(@siteName, ',', ''',''') + '''' + ')'
+                                ELSE ' AND Site = @SiteName'
+                        END
+                ELSE ''
             END + @WhereCondition + '
         )
-        INSERT INTO #tbl (RecordID, FieldName, FieldValue)
-        SELECT 
+        INSERT INTO #tbl (RecordID, FieldName, FieldValue, ReportDate,Site)
+        SELECT  
             p.RecordID,
             LEFT(x.value(''.'', ''NVARCHAR(MAX)''), CHARINDEX('':'', x.value(''.'', ''NVARCHAR(MAX)'')) - 1) AS FieldName,
-            SUBSTRING(x.value(''.'', ''NVARCHAR(MAX)''), CHARINDEX('':'', x.value(''.'', ''NVARCHAR(MAX)'')) + 1, LEN(x.value(''.'', ''NVARCHAR(MAX)''))) AS FieldValue
+            SUBSTRING(x.value(''.'', ''NVARCHAR(MAX)''), CHARINDEX('':'', x.value(''.'', ''NVARCHAR(MAX)'')) + 1, LEN(x.value(''.'', ''NVARCHAR(MAX)''))) AS FieldValue,
+            ReportDate,
+			Site
         FROM ParsedData p
         CROSS APPLY p.DataXML.nodes(''/X'') AS SplitData(x);';
 
-    -- Execute dynamic SQL for parsing tabledata
     EXEC sp_executesql @SQL, 
-        N'@ReportName VARCHAR(10), @SiteName VARCHAR(10)', 
+        N'@ReportName VARCHAR(50), @SiteName VARCHAR(255)', 
         @uniqueReportName, @siteName;
 
-    -- Generate dynamic column list for pivot
+    -- Generate dynamic column list for the pivot
     DECLARE @Columns NVARCHAR(MAX);
-    SELECT @Columns = STUFF((
-        SELECT DISTINCT ',' + QUOTENAME(FieldName)
-        FROM #tbl
-        FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '');
+    SELECT @Columns = STUFF((SELECT DISTINCT ',' + QUOTENAME(FieldName)
+                            FROM #tbl
+                            FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '');
 
-    -- Construct dynamic pivot SQL
-    SET @SQL = '
-        SELECT Site, ReportDate, UpdateDate, ' + @Columns + '
-        FROM 
-        (
-            SELECT 
-                od.Site,
-                od.ReportDate,
-                od.UpdateDate,
-                t.FieldName,
-                t.FieldValue,
-                t.RecordID
-            FROM #OriginalData od
-            INNER JOIN #tbl t ON od.RecordID = t.RecordID
-        ) AS SourceData
-        PIVOT (
-            MAX(FieldValue) FOR FieldName IN (' + @Columns + ')
-        ) AS PivotTable
-        ORDER BY Site, ReportDate, UpdateDate;';
+    -- Construct dynamic pivot SQL to combine all rows by report date
+    -- Construct dynamic pivot SQL to combine all rows by report date without extra GROUP BY
+SET @SQL = '
+    SELECT ReportDate,Site as Site, ''' + @uniqueReportName +''' as FaultIdent, '+ @Columns + '
+    FROM (
+        SELECT 
+            t.ReportDate,
+            t.FieldName,
+            t.FieldValue,
+			t.Site
+        FROM #tbl t
+    ) AS SourceData
+    PIVOT (
+        MAX(FieldValue) FOR FieldName IN (' + @Columns + ')
+    ) AS PivotTable
+    ORDER BY ReportDate;';  -- Removed GROUP BY and kept ordering
 
-    -- Execute the dynamic pivot query
+
     EXEC sp_executesql @SQL;
 
     -- Clean up temporary tables

@@ -166,7 +166,8 @@ exports.postAddEmployees = async (req, res) => {
       shift: employee.shift,
       status: employee.status,
       startDate: employee.startDate,
-      dateUpdated: new Date(employee.dateUpdated), 
+      dateUpdated: new Date(employee.dateUpdated),
+      hsRole: employee.hsRole, 
     })));
 
     res.status(201).send({

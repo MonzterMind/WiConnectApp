@@ -43,7 +43,7 @@ exports.postAddKeyMachineRecord = async (req, res) => {
     const operation = "insert";
     console.log(operation);
 
-    const operation = "insert";
+  
 
     // SQL query to insert data into the database
     const query = `

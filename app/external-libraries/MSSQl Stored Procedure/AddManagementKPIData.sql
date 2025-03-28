@@ -1,6 +1,6 @@
 USE [WitronCentralDatabaseSQLServer]
 GO
-/****** Object:  StoredProcedure [dbo].[AddManagementKPIData]    Script Date: 2025-01-27 9:58:33 AM ******/
+/****** Object:  StoredProcedure [dbo].[AddManagementKPIData]    Script Date: 2025-03-20 10:54:04 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -113,7 +113,8 @@ BEGIN
         [Sanitation],
         [Inactive Employees],
         [DateUpdated],
-        [UpdatedBy]
+        [UpdatedBy],
+		[Employee Exit]
     )
     SELECT
         @site,
@@ -190,6 +191,7 @@ BEGIN
         TRY_CAST(dbo.GetJsonValue(@json, 'Sanitation') AS FLOAT),
         TRY_CAST(dbo.GetJsonValue(@json, 'Inactive Employees') AS FLOAT),
         GETDATE(),
-        @updatedBy;
+        @updatedBy,
+		TRY_CAST(dbo.GetJsonValue(@json, 'Employee Exit') AS FLOAT)	;
 END;
 

@@ -5,7 +5,7 @@ exports.addProductionMetrics = async (req, res) => {
   try {
     // Extract parameters from req.params (not req.body)
     const { data } = req.body;
-     console.log("data", data);
+     
     // Ensure `data` exists and is an object
     if (!data || typeof data !== "object" || Array.isArray(data)) {
       throw new Error("Invalid data format: Expected an object.");

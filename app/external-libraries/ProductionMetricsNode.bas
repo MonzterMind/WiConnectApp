@@ -13,7 +13,6 @@ Public Sub ComposeAndSaveProductionMetrics()
 Dim reportDate As Date, COMHours As Variant, Volume As Variant, CustomerDownTime As Variant, _
 PercentageProductiveHours As Variant, NonConformanceCount As Variant, _
 LateRoutes As Variant, ScratchRate As Variant
-Dim target As Integer, productivityHours As Integer
 'set to Empty first so we don't forget. Stored procedure will ignore the fields if its Empty or null
 COMHours = Empty 'production report
 Volume = Empty 'production report
@@ -95,7 +94,7 @@ End Sub
 'Const SERVER As String = "localhost"
 Private Sub AddProductionMetrics(reportDate As Date, COMHours As Variant, _
 Volume As Variant, CustomerDownTime As Variant, PercentageProductiveHours As Variant, _
-NonConformanceCount As Variant, LateRoutes As Variant, ScratchRate As Variant, Optional zone As String = "")
+NonConformanceCount As Variant, LateRoutes As Variant, ScratchRate As Variant)
 Dim sht As Worksheet
 Dim Json As String
 Dim url As String
@@ -166,15 +165,11 @@ Private Function ProductivityTarget(siteAndZone As String) As Integer
 'Metro Terrebonne FRZ       4050
 'Metro Terrebonne COL       6000
 'Metro Toronto Cooler       7000
-'Loblaws East Gwillimbury Produce            1500
-'Loblaws East Gwillimbury Freezer            2250
-'Loblaws East Gwillimbury Cooler             5000
-'Loblaws East Gwillimbury DRY                10000
 Select Case siteAndZone
     Case "TB"
         ProductivityTarget = 8000 * ProductivityTargetPercent
     Case "CY"
-        ProductivityTarget = 5000 * ProductivityTargetPercent
+        ProductivityTarget = 500 * ProductivityTargetPercent
     Case "CW"
         ProductivityTarget = 11700 * ProductivityTargetPercent
     Case "MTB-COL"
@@ -191,23 +186,11 @@ Select Case siteAndZone
         ProductivityTarget = 2000 * ProductivityTargetPercent
     Case "VR-FRZ"
         ProductivityTarget = 900 * ProductivityTargetPercent
-    Case "VA-FRZ"
-        ProductivityTarget = 2250 * ProductivityTargetPercent
-    Case "VA-COL"
-        ProductivityTarget = 2500 * ProductivityTargetPercent
-    Case "VA-DRY"
-        ProductivityTarget = 6720 * ProductivityTargetPercent
-    Case "LEG-PDCE"
-        ProductivityTarget = 1500 * ProductivityTargetPercent 'PDCE 500 * 3
-    Case "LEG-FRZ"
-        ProductivityTarget = 2250 * ProductivityTargetPercent 'Frz 450 * 5
-    Case "LEG-COL"
-        ProductivityTarget = 5000 * ProductivityTargetPercent 'COL 500 * 10
-    Case "LEG-DRY"
-        ProductivityTarget = 10000 * ProductivityTargetPercent 'DRY 500 * 20
+
 
 End Select
 End Function
+
 
 
 

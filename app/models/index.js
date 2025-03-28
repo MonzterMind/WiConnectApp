@@ -29,6 +29,6 @@ db.packcornerCleaning = require('../src/packcorner-cleaning-tracker/packcorner-c
 db.emergencyResponse = require('../src/emergency-response/emergency-response.model.js')(sequelize, Sequelize);
 db.masterdataReport = require('../src/masterdata-report/masterdata-report.model.js')(sequelize, Sequelize);
 db.productionMetricsData = require('../src/production-metrics/production-metrics.model.js')(sequelize, Sequelize);
-
+db.dynamicReportData = require('../src/dynamic-report/dynamic-report.model.js')(sequelize, Sequelize);
 db.keyMachine = require('../src/key-machine/key-machine.model.js')(sequelize, Sequelize);
 module.exports = db;

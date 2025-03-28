@@ -42,6 +42,10 @@ module.exports = (sequelize, Sequelize) => {
         dateUpdated: {
             type: Sequelize.DATE,
             field: 'DateUpdated'
+        },
+        hsRole: {
+            type: Sequelize.STRING,
+            field: 'HSRole'
         }
     },{
         tableName: 'HeadcountLive',
